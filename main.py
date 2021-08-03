@@ -1,16 +1,15 @@
 import sys
 import threading
 import time
-
 import cv2
 import FileManager
-import DetectPerson
-import numpy as np
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QWidget, QApplication, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QSizePolicy, QPushButton
-from PyQt5.QtCore import pyqtSignal, QThread
 from PyQt5 import QtGui
+
+from ImageUtils import cvImgToQtImg, draw_area
+from Camera import VideoThread, CameraSetup
 
 CAMERA_W = 400
 CAMERA_H = 300
@@ -30,121 +29,11 @@ Option_TIME_CHAGNE_TERM_LABEL_TEXT = "신호 변경 시간 간격 (자연수)(�
 # https://blog.xcoda.net/104
 # AutoMagically Resize The Input Image Size To ( CAMERA_W * CAMERA_H )
 
-def cvImgToQtImg(cvImage, W=150):
-    cvImage = resizeCVIMG(cvImage, W)
-    pixmap = cvImgToPixmap(cvImage)
-    label = QLabel()
-    label.setPixmap(pixmap)
-    label.resize(pixmap.width(), pixmap.height())
-    return label
-
-
-def resizeCVIMG(cvImage, W=150):
-    ratio = W / cvImage.shape[1]
-    dim = (W, int(cvImage.shape[0] * ratio))
-
-    # perform the actual resizing of the image
-    cvImage = cv2.resize(cvImage, dim, interpolation=cv2.INTER_AREA)
-
-    return cvImage
-
-
-def cvImgToPixmap(cvImage):
-    img = cv2.cvtColor(cvImage, cv2.COLOR_BGR2RGB)
-    h, w, c = img.shape
-    qImg = QtGui.QImage(img.data, w, h, w * c, QtGui.QImage.Format_RGB888)
-    pixmap = QtGui.QPixmap.fromImage(qImg)
-    return pixmap
-
-
-def draw_area(cvImg, pos_list, dotColor=(255, 0, 0), lineColor=(0, 255, 0)):
-    copyList = []
-    for i in range(len(pos_list)):
-        x = pos_list[i][0]
-        y = pos_list[i][1]
-        cv2.circle(cvImg, (x, y), 5, dotColor, -1)
-        copyList.append([x, y])
-
-    if len(pos_list) == 4:
-        x_arg_sort = []
-        for i in range(4):
-            arg = np.argmax(copyList, axis=0)[0]
-            x_arg_sort.append(arg)
-            copyList[arg] = [-1, -1]
-        x_arg_sort.reverse()
-
-        if pos_list[x_arg_sort[0]][1] > pos_list[x_arg_sort[1]][1]:
-            dump = x_arg_sort[0]
-            x_arg_sort[0] = x_arg_sort[1]
-            x_arg_sort[1] = dump
-
-        if pos_list[x_arg_sort[2]][1] < pos_list[x_arg_sort[3]][1]:
-            dump = x_arg_sort[2]
-            x_arg_sort[2] = x_arg_sort[3]
-            x_arg_sort[3] = dump
-
-        # High-Low_Low_High
-        for i in range(4):
-            arg = x_arg_sort[i]
-            start = pos_list[arg]
-            end = pos_list[x_arg_sort[(i + 1) % 4]]
-            cv2.line(cvImg, (start[0], start[1]), (end[0], end[1]), lineColor, 2)
-
-    return cvImg
-
-
-class VideoThread(QThread):
-    change_pixmap_signal = pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray)
-
-    def __init__(self, left_camera_num, right_camera_num):
-        super().__init__()
-        self._run_flag = True
-        self.left_camera_num = left_camera_num
-        self.right_camera_num = right_camera_num
-
-    def run(self):
-        # capture from web cam
-        cam_left = cv2.VideoCapture(self.left_camera_num)
-        cam_right = cv2.VideoCapture(self.right_camera_num)
-
-        while self._run_flag:
-            ret_left, cv_img_left = cam_left.read()
-            ret_right, cv_img_right = cam_right.read()
-
-            pos_left = []
-            pos_right = []
-
-            if ret_left is False:
-                cv_img_left = []
-            else:
-                cv_img_left, pos_left = DetectPerson.DetectPerson(cv_img_left)
-
-            if ret_right is False:
-                cv_img_right = []
-            else:
-                cv_img_right, pos_right = DetectPerson.DetectPerson(cv_img_right)
-
-            # Convert List => ND_ARRAY Form
-            cv_img_left = np.array(cv_img_left)
-            cv_img_right = np.array(cv_img_right)
-            pos_left = np.array(pos_left)
-            pos_right = np.array(pos_right)
-
-            self.change_pixmap_signal.emit(cv_img_left, cv_img_right, pos_left, pos_right)
-
-        # shut down capture system
-        cam_left.release()
-        cam_right.release()
-
-    def stop(self):
-        self._run_flag = False
-        self.exit()
-
-
 class Main(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.isPreparingCamera = False
         self.config = FileManager.configManager()
 
         self.isTimerRun = False
@@ -171,6 +60,9 @@ class Main(QWidget):
         self.Option_INC_TIME_NORMAL_Input = QLineEdit()
 
         self.setWindowTitle(":: The CROSS :: Smart Traffic Control System")
+
+        self.CAMERA_PREPARING_IMG_L = cvImgToQtImg(cv2.imread(IMAGE_PATH + "camera_preparing.png"), CAMERA_W)
+        self.CAMERA_PREPARING_IMG_R = cvImgToQtImg(cv2.imread(IMAGE_PATH + "camera_preparing.png"), CAMERA_W)
 
         self.CAMERA_NO_SIGNAL_IMG_L = cvImgToQtImg(cv2.imread(IMAGE_PATH + "camera_no_signal.png"), CAMERA_W)
         self.CAMERA_NO_SIGNAL_IMG_R = cvImgToQtImg(cv2.imread(IMAGE_PATH + "camera_no_signal.png"), CAMERA_W)
@@ -356,8 +248,15 @@ class Main(QWidget):
         self.startTimer()
         self.show()
 
-    #   imgLeft & imgRight must be QtImage Instance
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        self.stopCamera()
+        self.stopTimer()
+
+    #   imgLeft & imgRight must be cvImage
     def processing(self, imgLeft, imgRight, left_pos, right_pos):
+
+        if self.isPreparingCamera is True:
+            return
 
         if len(imgLeft) == 0:
             imgLeft = self.CAMERA_NO_SIGNAL_IMG_L
@@ -411,16 +310,24 @@ class Main(QWidget):
     def carlane_TurnYellow_Off(self):
         self.CarLane_Yellow.setPixmap(self.YELLOW_OFF_IMG.pixmap())
 
+    def printPreparingCamera(self):
+        self.isPreparingCamera = True
+        self.CameraLeft.setPixmap(self.CAMERA_PREPARING_IMG_L.pixmap())
+        self.CameraRight.setPixmap(self.CAMERA_PREPARING_IMG_R.pixmap())
+
     def stopCamera(self):
         if self.thread.isRunning() is True:
             self.thread.stop()
+            self.printPreparingCamera()
 
     def refreshCamera(self):
         self.stopCamera()
+        self.printPreparingCamera()
         self.thread = VideoThread(self.config.getConfig()['LEFT_CAMERA_NUMBER'],
                                   self.config.getConfig()['RIGHT_CAMERA_NUMBER'])
         self.thread.change_pixmap_signal.connect(self.processing)
         self.thread.start()
+        self.isPreparingCamera = False
 
     # ================= CONTROL PANEL BUTTON EVENTS =====================
 
@@ -429,20 +336,27 @@ class Main(QWidget):
         # GET TEXTBOX VALUES
         INCREASE_TIME_NORMAL = int(self.Option_INC_TIME_NORMAL_Input.text())
         INCREASE_TIME_SPECIAL = int(self.Option_INC_TIME_SPECIAL_Input.text())
+        CROSSWALK_TIME = int(self.Option_TIME_CROSSWALK_GREEN_Input.text())
+        CARLANE_TIME = int(self.Option_TIME_CARLANE_GREEN_Input.text())
+        CHANGE_TERM = int(self.Option_TIME_CHANGE_TERM_Input.text())
 
         # SAVE AT JSON
         self.config.setConfig('INCREASE_TIME_NORMAL', INCREASE_TIME_NORMAL)
         self.config.setConfig('INCREASE_TIME_SPECIAL', INCREASE_TIME_SPECIAL)
+        self.config.setConfig('CROSSWALK_TIME', CROSSWALK_TIME)
+        self.config.setConfig('CARLANE_TIME', CARLANE_TIME)
+        self.config.setConfig('CHANGE_TERM', CHANGE_TERM)
 
         # TODO: CHANGE OPTIONS TO PROGRAM
+        self.crosswalkTime = self.config.getConfig()['CROSSWALK_TIME']
+        self.carlaneTime = self.config.getConfig()['CARLANE_TIME']
+        self.changeTerm = self.config.getConfig()['CHANGE_TERM']
 
     def Change_CrosswalkTime_Button_Event(self):
-        print('Crosswalk Green')
         if self.isCarlaneTime is True and self.isCrosswalkTime is False:
             self.timeStack = self.changeTerm
         elif self.isCarlaneTime is False and self.isCrosswalkTime is True:
             self.timeStack = self.crosswalkTime
-        return
 
     def Change_CarTime_Button_Event(self):
         print('Change To Car Time')
@@ -456,7 +370,6 @@ class Main(QWidget):
         self.config.setConfig('LEFT_CAMERA_CROSSWALK_POS', result)
         self.refreshCamera()
         self.startTimer()
-        return
 
     def Right_Camera_Crosswalk_Button_Event(self):
         self.stopCamera()
@@ -466,7 +379,6 @@ class Main(QWidget):
         self.config.setConfig('RIGHT_CAMERA_CROSSWALK_POS', result)
         self.refreshCamera()
         self.startTimer()
-        return
 
     def Left_Camera_Carlane_Button_Event(self):
         self.stopCamera()
@@ -490,7 +402,6 @@ class Main(QWidget):
 
     def TimerMethod(self):
         while self.isTimerRun:
-            print('Timer!')
             # 초기화 부분
             if self.isCarlaneTime is False and self.isCrosswalkTime is False:
                 self.timeStack = self.carlaneTime
@@ -544,67 +455,30 @@ class Main(QWidget):
             self.changeTimer(self.timeStack)
             time.sleep(1)
 
+        #타이머 종료 처리
         self.isCrosswalkTime = False
         self.isCarlaneTime = False
 
+        self.carlane_TurnRed_Off()
+        self.carlane_TurnYellow_Off()
+        self.carlane_TurnGreen_Off()
+
+        self.crosswalk_TurnRed_Off()
+        self.crosswalk_TurnGreen_Off()
+
     def stopTimer(self):
-        print('Timer Canceled...')
         self.isTimerRun = False
+        self.TimerLabel.setText('X')
 
     def startTimer(self):
+        if self.timerThread.is_alive() is True:
+            return
+        self.timerThread = threading.Thread(target=self.TimerMethod)
         self.isTimerRun = True
         self.timerThread.start()
 
     def changeTimer(self, num):
-        self.TimerLabel.setText(str(num+1))
-
-
-# TODO: MAKE THIS CLASS TO >>> THREAD
-class CameraSetup:
-
-    def __init__(self, camera_num):
-        super().__init__()
-        self.touch_list = []
-        self.windowName = 'Camera Setup :: Save & Exit Button is KEY Q'
-        self.isRun = True
-        self.Camera_Number = camera_num
-        self.CAMERA_NO_SIGNAL_IMG = cv2.imread(IMAGE_PATH + "camera_no_signal.png")
-
-    def addXY_inList(self, x, y):
-        if len(self.touch_list) >= 4:
-            self.touch_list = []
-        self.touch_list.append([x, y])
-
-    def clear_List(self):
-        self.touch_list = []
-
-    def click_event(self, event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            print('x : ', x, ' y : ', y)
-            self.addXY_inList(x, y)
-
-    def runSetup(self):
-
-        cv2.namedWindow(self.windowName)
-        cv2.setMouseCallback(self.windowName, self.click_event)
-
-        cap = cv2.VideoCapture(self.Camera_Number)
-
-        while self.isRun:
-            ret, frame = cap.read()
-            if ret is False:
-                frame = self.CAMERA_NO_SIGNAL_IMG
-            else:
-                frame = draw_area(frame, self.touch_list)
-
-            cv2.imshow(self.windowName, frame)
-            key = cv2.waitKey(1)
-            if key & 0xFF == ord('q') or key & 0xFF == ord('Q'):
-                self.isRun = False
-                cv2.destroyWindow(self.windowName)
-                cap.release()
-                cv2.waitKey(10)
-                return self.touch_list
+        self.TimerLabel.setText(str(num + 1))
 
 
 if __name__ == "__main__":
