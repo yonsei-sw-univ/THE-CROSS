@@ -1,4 +1,7 @@
 import sys
+import threading
+import time
+
 import cv2
 import FileManager
 import DetectPerson
@@ -6,7 +9,7 @@ import numpy as np
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QWidget, QApplication, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QSizePolicy, QPushButton
-from PyQt5.QtCore import pyqtSignal, QThread, QEvent, QObject
+from PyQt5.QtCore import pyqtSignal, QThread
 from PyQt5 import QtGui
 
 CAMERA_W = 400
@@ -25,7 +28,8 @@ Option_TIME_CHAGNE_TERM_LABEL_TEXT = "신호 변경 시간 간격 (자연수)(�
 
 
 # https://blog.xcoda.net/104
-# AutoMatically Resize The Input Image Size To ( CAMERA_W * CAMERA_H )
+# AutoMagically Resize The Input Image Size To ( CAMERA_W * CAMERA_H )
+
 def cvImgToQtImg(cvImage, W=150):
     cvImage = resizeCVIMG(cvImage, W)
     pixmap = cvImgToPixmap(cvImage)
@@ -58,7 +62,7 @@ def draw_area(cvImg, pos_list, dotColor=(255, 0, 0), lineColor=(0, 255, 0)):
     for i in range(len(pos_list)):
         x = pos_list[i][0]
         y = pos_list[i][1]
-        cv2.circle(cvImg, (x, y), 10, dotColor, -1)
+        cv2.circle(cvImg, (x, y), 5, dotColor, -1)
         copyList.append([x, y])
 
     if len(pos_list) == 4:
@@ -84,7 +88,7 @@ def draw_area(cvImg, pos_list, dotColor=(255, 0, 0), lineColor=(0, 255, 0)):
             arg = x_arg_sort[i]
             start = pos_list[arg]
             end = pos_list[x_arg_sort[(i + 1) % 4]]
-            cv2.line(cvImg, (start[0], start[1]), (end[0], end[1]), lineColor, 5)
+            cv2.line(cvImg, (start[0], start[1]), (end[0], end[1]), lineColor, 2)
 
     return cvImg
 
@@ -140,22 +144,31 @@ class VideoThread(QThread):
 class Main(QWidget):
     def __init__(self):
         super().__init__()
+
+        self.config = FileManager.configManager()
+
+        self.isTimerRun = False
+        self.timerThread = threading.Thread(target=self.TimerMethod)
+        self.changeTerm = self.config.getConfig()['CHANGE_TERM']
+        self.timeStack = 0
+        self.carlaneTime = self.config.getConfig()['CARLANE_TIME']
+        self.crosswalkTime = self.config.getConfig()['CROSSWALK_TIME']
+        self.isCrosswalkTime = False
+        self.isCarlaneTime = False
+
+        self.Left_Camera_Carlane_Button = QPushButton()
+        self.Right_Camera_Carlane_Button = QPushButton()
         self.Option_TIME_CHANGE_TERM_Input = QLineEdit()
         self.Option_TIME_CARLANE_GREEN_Input = QLineEdit()
         self.Option_TIME_CROSSWALK_GREEN_Input = QLineEdit()
-        self.Right_Camera_Button = QPushButton()
-        self.Left_Camera_Button = QPushButton()
-        self.CarLane_Yellow_Button = QPushButton()
-        self.CarLane_Green_Button = QPushButton()
-        self.CarLane_Red_Button = QPushButton()
-        self.Crosswalk_Red_Button = QPushButton()
-        self.Crosswalk_Green_Button = QPushButton()
+        self.Right_Camera_Crosswalk_Button = QPushButton()
+        self.Left_Camera_Crosswalk_Button = QPushButton()
+        self.Change_CarTime_Button = QPushButton()
+        self.Change_CrosswalkTime_Button = QPushButton()
         self.Option_INC_TIME_SPECIAL_Input = QLineEdit()
         self.ConfirmButton = QPushButton()
-        self.Timer = QLabel()
+        self.TimerLabel = QLabel()
         self.Option_INC_TIME_NORMAL_Input = QLineEdit()
-
-        self.config = FileManager.configManager()
 
         self.setWindowTitle(":: The CROSS :: Smart Traffic Control System")
 
@@ -212,10 +225,10 @@ class Main(QWidget):
         CrosswalkPanel.addWidget(self.Crosswalk_Red)
         CrosswalkPanel.addWidget(self.Crosswalk_Green)
 
-        self.Timer.setFont(QFont(TIMER_FONT, 60))
-        self.Timer.setText("0")
+        self.TimerLabel.setFont(QFont(TIMER_FONT, 60))
+        self.TimerLabel.setText("0")
         CrosswalkPanel.addStretch(1)
-        CrosswalkPanel.addWidget(self.Timer)
+        CrosswalkPanel.addWidget(self.TimerLabel)
         CrosswalkPanel.addStretch(1)
 
         CarLanePanel.addWidget(self.CarLane_Red)
@@ -284,42 +297,39 @@ class Main(QWidget):
         # ==================== CONTROL PANEL ====================
         # =======================================================
 
-        self.Crosswalk_Green_Button.setText("횡단보도 초록불로 변경")
-        self.Crosswalk_Red_Button.setText("횡단보도 빨간불로 변경")
+        self.Change_CrosswalkTime_Button.setText("횡단보도 신호로 변경")
+        self.Change_CarTime_Button.setText("도로주행 신호로 변경")
 
-        self.Crosswalk_Green_Button.clicked.connect(self.Crosswalk_Green_Button_Event)
-        self.Crosswalk_Red_Button.clicked.connect(self.Crosswalk_Red_Button_Event)
+        self.Change_CrosswalkTime_Button.clicked.connect(self.Change_CrosswalkTime_Button_Event)
+        self.Change_CarTime_Button.clicked.connect(self.Change_CarTime_Button_Event)
 
-        self.CarLane_Green_Button.setText("신호등 초록불로 변경")
-        self.CarLane_Yellow_Button.setText("신호등 노란불로 변경")
-        self.CarLane_Red_Button.setText("신호등 빨간불로 변경")
+        self.Left_Camera_Crosswalk_Button.setText("좌측 카메라 횡단보도 영역설정")
+        self.Right_Camera_Crosswalk_Button.setText("우측 카메라 횡단보도 영역설정")
 
-        self.CarLane_Green_Button.clicked.connect(self.Carlane_Green_Button_Event)
-        self.CarLane_Yellow_Button.clicked.connect(self.Carlane_Yellow_Button_Event)
-        self.CarLane_Red_Button.clicked.connect(self.Carlane_Red_Button_Event)
+        self.Left_Camera_Crosswalk_Button.clicked.connect(self.Left_Camera_Crosswalk_Button_Event)
+        self.Right_Camera_Crosswalk_Button.clicked.connect(self.Right_Camera_Crosswalk_Button_Event)
 
-        self.Left_Camera_Button.setText("좌측 카메라 횡단보도 영역설정")
-        self.Right_Camera_Button.setText("우측 카메라 횡단보도 영역설정")
+        self.Left_Camera_Carlane_Button.setText("좌측 카메라 차량도로 영역설정")
+        self.Right_Camera_Carlane_Button.setText("우측 카메라 차량도로 영역설정")
 
-        self.Left_Camera_Button.clicked.connect(self.Left_Camera_Button_Event)
-        self.Right_Camera_Button.clicked.connect(self.Right_Camera_Button_Event)
+        self.Left_Camera_Carlane_Button.clicked.connect(self.Left_Camera_Carlane_Button_Event)
+        self.Right_Camera_Carlane_Button.clicked.connect(self.Right_Camera_Carlane_Button_Event)
 
         Control_Crosswalk_Panel = QHBoxLayout()
-        Control_Crosswalk_Panel.addWidget(self.Crosswalk_Red_Button)
-        Control_Crosswalk_Panel.addWidget(self.Crosswalk_Green_Button)
+        Control_Crosswalk_Panel.addWidget(self.Change_CarTime_Button)
+        Control_Crosswalk_Panel.addWidget(self.Change_CrosswalkTime_Button)
 
-        Control_Carlane_Panel = QHBoxLayout()
-        Control_Carlane_Panel.addWidget(self.CarLane_Red_Button)
-        Control_Carlane_Panel.addWidget(self.CarLane_Yellow_Button)
-        Control_Carlane_Panel.addWidget(self.CarLane_Green_Button)
+        Control_Camera_Crosswalk_Panel = QHBoxLayout()
+        Control_Camera_Crosswalk_Panel.addWidget(self.Left_Camera_Crosswalk_Button)
+        Control_Camera_Crosswalk_Panel.addWidget(self.Right_Camera_Crosswalk_Button)
 
-        Control_Camera_Panel = QHBoxLayout()
-        Control_Camera_Panel.addWidget(self.Left_Camera_Button)
-        Control_Camera_Panel.addWidget(self.Right_Camera_Button)
+        Control_Camera_Carlane_Panel = QHBoxLayout()
+        Control_Camera_Carlane_Panel.addWidget(self.Left_Camera_Carlane_Button)
+        Control_Camera_Carlane_Panel.addWidget(self.Right_Camera_Carlane_Button)
 
         ControlPanel.addLayout(Control_Crosswalk_Panel)
-        ControlPanel.addLayout(Control_Carlane_Panel)
-        ControlPanel.addLayout(Control_Camera_Panel)
+        ControlPanel.addLayout(Control_Camera_Crosswalk_Panel)
+        ControlPanel.addLayout(Control_Camera_Carlane_Panel)
 
         # =======================================================
         # ==================== CONFIRM BUTTON ===================
@@ -343,6 +353,7 @@ class Main(QWidget):
 
         # Set Up Camera
         self.refreshCamera()
+        self.startTimer()
         self.show()
 
     #   imgLeft & imgRight must be QtImage Instance
@@ -369,13 +380,6 @@ class Main(QWidget):
             imgRight = cvImgToQtImg(imgRight, CAMERA_W)
 
         self.CameraRight.setPixmap(imgRight.pixmap())
-
-        if len(left_pos) + len(right_pos) > 0:
-            self.crosswalk_TurnGreen_On()
-            self.crosswalk_TurnRed_Off()
-        else:
-            self.crosswalk_TurnRed_On()
-            self.crosswalk_TurnGreen_Off()
 
     def crosswalk_TurnRed_On(self):
         self.Crosswalk_Red.setPixmap(self.CROSSWALK_RED_ON_IMG.pixmap())
@@ -404,7 +408,7 @@ class Main(QWidget):
     def carlane_TurnYellow_On(self):
         self.CarLane_Yellow.setPixmap(self.YELLOW_ON_IMG.pixmap())
 
-    def carlane_TurnGreen_Off(self):
+    def carlane_TurnYellow_Off(self):
         self.CarLane_Yellow.setPixmap(self.YELLOW_OFF_IMG.pixmap())
 
     def stopCamera(self):
@@ -432,48 +436,127 @@ class Main(QWidget):
 
         # TODO: CHANGE OPTIONS TO PROGRAM
 
-    def Crosswalk_Green_Button_Event(self):
+    def Change_CrosswalkTime_Button_Event(self):
         print('Crosswalk Green')
+        if self.isCarlaneTime is True and self.isCrosswalkTime is False:
+            self.timeStack = self.changeTerm
+        elif self.isCarlaneTime is False and self.isCrosswalkTime is True:
+            self.timeStack = self.crosswalkTime
         return
 
-    def Crosswalk_Red_Button_Event(self):
-        print('Crosswalk Red')
+    def Change_CarTime_Button_Event(self):
+        print('Change To Car Time')
         return
 
-    def Carlane_Green_Button_Event(self):
-        print('Carlane Green')
-        return
-
-    def Carlane_Yellow_Button_Event(self):
-        print('Carlane Yellow')
-        return
-
-    def Carlane_Red_Button_Event(self):
-        print('Carlane Red')
-        return
-
-    def Left_Camera_Button_Event(self):
+    def Left_Camera_Crosswalk_Button_Event(self):
         self.stopCamera()
+        self.stopTimer()
         setup = CameraSetup(self.config.getConfig()['LEFT_CAMERA_NUMBER'])
         result = setup.runSetup()
         self.config.setConfig('LEFT_CAMERA_CROSSWALK_POS', result)
-        print('left-camera-setting-done')
         self.refreshCamera()
+        self.startTimer()
         return
 
-    def Right_Camera_Button_Event(self):
+    def Right_Camera_Crosswalk_Button_Event(self):
         self.stopCamera()
+        self.stopTimer()
         setup = CameraSetup(self.config.getConfig()['RIGHT_CAMERA_NUMBER'])
         result = setup.runSetup()
         self.config.setConfig('RIGHT_CAMERA_CROSSWALK_POS', result)
-        print('right-camera-setting-done')
         self.refreshCamera()
+        self.startTimer()
         return
+
+    def Left_Camera_Carlane_Button_Event(self):
+        self.stopCamera()
+        self.stopTimer()
+        setup = CameraSetup(self.config.getConfig()['LEFT_CAMERA_NUMBER'])
+        result = setup.runSetup()
+        self.config.setConfig('LEFT_CAMERA_CARLANE_POS', result)
+        self.refreshCamera()
+        self.startTimer()
+
+    def Right_Camera_Carlane_Button_Event(self):
+        self.stopCamera()
+        self.stopTimer()
+        setup = CameraSetup(self.config.getConfig()['RIGHT_CAMERA_NUMBER'])
+        result = setup.runSetup()
+        self.config.setConfig('RIGHT_CAMERA_CARLANE_POS', result)
+        self.refreshCamera()
+        self.startTimer()
 
     # ============================= TIMER ===============================
 
-    def changeTimer(self, time):
-        self.Timer.setText(time)
+    def TimerMethod(self):
+        while self.isTimerRun:
+            print('Timer!')
+            # 초기화 부분
+            if self.isCarlaneTime is False and self.isCrosswalkTime is False:
+                self.timeStack = self.carlaneTime
+                self.isCarlaneTime = True
+                self.isCrosswalkTime = False
+
+                self.carlane_TurnRed_Off()
+                self.carlane_TurnGreen_On()
+
+                self.crosswalk_TurnGreen_Off()
+                self.crosswalk_TurnRed_On()
+
+            # 타이머가 0초일 경우
+            if self.timeStack == 0:
+                self.carlane_TurnYellow_Off()
+                # 차량신호 시간이 끝났을 경우
+                if self.isCarlaneTime is True and self.isCrosswalkTime is False:
+
+                    self.carlane_TurnRed_On()
+                    self.carlane_TurnGreen_Off()
+
+                    self.crosswalk_TurnGreen_On()
+                    self.crosswalk_TurnRed_Off()
+
+                    self.timeStack = self.crosswalkTime
+                    self.isCarlaneTime = False
+                    self.isCrosswalkTime = True
+
+                # 횡단보도 시간이 끝났을 경우
+                elif self.isCarlaneTime is False and self.isCrosswalkTime is True:
+
+                    self.carlane_TurnRed_Off()
+                    self.carlane_TurnGreen_On()
+
+                    self.crosswalk_TurnGreen_Off()
+                    self.crosswalk_TurnRed_On()
+
+                    self.timeStack = self.carlaneTime
+                    self.isCarlaneTime = True
+                    self.isCrosswalkTime = False
+
+            # changeTerm 내의 시간이라면 노란불 켜기
+            if 0 < self.timeStack <= self.changeTerm and \
+                    self.isCrosswalkTime is False and self.isCarlaneTime is True:
+                self.carlane_TurnRed_Off()
+                self.carlane_TurnYellow_On()
+                self.carlane_TurnGreen_Off()
+
+            # 타이머 감소 및 시간 표시 변경
+            self.timeStack -= 1
+            self.changeTimer(self.timeStack)
+            time.sleep(1)
+
+        self.isCrosswalkTime = False
+        self.isCarlaneTime = False
+
+    def stopTimer(self):
+        print('Timer Canceled...')
+        self.isTimerRun = False
+
+    def startTimer(self):
+        self.isTimerRun = True
+        self.timerThread.start()
+
+    def changeTimer(self, num):
+        self.TimerLabel.setText(str(num+1))
 
 
 # TODO: MAKE THIS CLASS TO >>> THREAD
