@@ -9,7 +9,7 @@ labels = pd.read_csv('labels.csv', sep=';', index_col='ID')
 labels = labels['OBJECT (2017 REL.)']
 
 
-def DetectPerson(image):
+def Detector(image):
     # Convert img to RGB
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
