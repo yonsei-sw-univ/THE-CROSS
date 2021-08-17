@@ -8,7 +8,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QWidget, QApplication, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QSizePolicy, QPushButton
 from PyQt5 import QtGui
 
-from ImageUtils import cvImgToQtImg, draw_area
+from ImageUtils import cvImgToQtImg, draw_area, isSpotInRect
 from Camera import VideoThread, CameraSetup
 
 CAMERA_W = 400
@@ -253,16 +253,36 @@ class Main(QWidget):
         self.stopTimer()
 
     #   imgLeft & imgRight must be cvImage
-    def processing(self, imgLeft, imgRight, left_pos, right_pos):
+    def processing(self, imgLeft, imgRight, left_pos, right_pos,
+                   ambulance_pos_left, cane_pos_left, wheelchair_pos_left, baby_carriage_pos_left,
+                   ambulance_pos_right, cane_pos_right, wheelchair_pos_right, baby_carriage_pos_right):
 
         if self.isPreparingCamera is True:
             return
+
+        isPersonExist = False
+        isDisablePersonExist = False
+        # TODO : Reference Siren From Other Code!
+        isSiren = False
+        isAmbulanceExist = False
 
         if len(imgLeft) == 0:
             imgLeft = self.CAMERA_NO_SIGNAL_IMG_L
         else:
             CrossArea = self.config.getConfig()['LEFT_CAMERA_CROSSWALK_POS']
             CarLaneArea = self.config.getConfig()['LEFT_CAMERA_CARLANE_POS']
+
+            if isPersonExist is False and isSpotInRect(CrossArea, left_pos):
+                isPersonExist = True
+
+            if isDisablePersonExist is False:
+                if isSpotInRect(CrossArea, cane_pos_left) or isSpotInRect(CrossArea, wheelchair_pos_left) or isSpotInRect(CrossArea, baby_carriage_pos_left):
+                    isDisablePersonExist = True
+
+            if isAmbulanceExist is False:
+                if isSpotInRect(CarLaneArea, ambulance_pos_left):
+                    isAmbulanceExist = True
+
             imgLeft = draw_area(imgLeft, CrossArea)
             imgLeft = draw_area(imgLeft, CarLaneArea, (255, 0, 0), (255, 0, 0))
             imgLeft = cvImgToQtImg(imgLeft, CAMERA_W)
@@ -274,6 +294,18 @@ class Main(QWidget):
         else:
             CrossArea = self.config.getConfig()['RIGHT_CAMERA_CROSSWALK_POS']
             CarLaneArea = self.config.getConfig()['RIGHT_CAMERA_CARLANE_POS']
+
+            if isPersonExist is False and isSpotInRect(CrossArea, right_pos):
+                isPersonExist = True
+
+            if isDisablePersonExist is False:
+                if isSpotInRect(CrossArea, cane_pos_right) or isSpotInRect(CrossArea, wheelchair_pos_right) or isSpotInRect(CrossArea, baby_carriage_pos_right):
+                    isDisablePersonExist = True
+
+            if isAmbulanceExist is False:
+                if isSpotInRect(CarLaneArea, ambulance_pos_right):
+                    isAmbulanceExist = True
+
             imgRight = draw_area(imgRight, CrossArea)
             imgRight = draw_area(imgRight, CarLaneArea, (255, 0, 0), (255, 0, 0))
             imgRight = cvImgToQtImg(imgRight, CAMERA_W)
@@ -455,7 +487,7 @@ class Main(QWidget):
             self.changeTimer(self.timeStack)
             time.sleep(1)
 
-        #타이머 종료 처리
+        # 타이머 종료 처리
         self.isCrosswalkTime = False
         self.isCarlaneTime = False
 
