@@ -266,51 +266,56 @@ class Main(QWidget):
         isSiren = False
         isAmbulanceExist = False
 
-        if len(imgLeft) == 0:
-            imgLeft = self.CAMERA_NO_SIGNAL_IMG_L
-        else:
-            CrossArea = self.config.getConfig()['LEFT_CAMERA_CROSSWALK_POS']
-            CarLaneArea = self.config.getConfig()['LEFT_CAMERA_CARLANE_POS']
+        try:
+            if len(imgLeft) == 0:
+                imgLeft = self.CAMERA_NO_SIGNAL_IMG_L
+            else:
+                CrossArea = self.config.getConfig()['LEFT_CAMERA_CROSSWALK_POS']
+                CarLaneArea = self.config.getConfig()['LEFT_CAMERA_CARLANE_POS']
+                if isPersonExist is False and isSpotInRect(CrossArea, left_pos):
+                    isPersonExist = True
+                print(cane_pos_left)
+                print(wheelchair_pos_left)
+                print(baby_carriage_pos_left)
 
-            if isPersonExist is False and isSpotInRect(CrossArea, left_pos):
-                isPersonExist = True
+                if isDisablePersonExist is False:
+                    if isSpotInRect(CrossArea, cane_pos_left) or isSpotInRect(CrossArea, wheelchair_pos_left) or \
+                            isSpotInRect(CrossArea, baby_carriage_pos_left):
+                        isDisablePersonExist = True
+                if isAmbulanceExist is False:
+                    if isSpotInRect(CarLaneArea, ambulance_pos_left):
+                        isAmbulanceExist = True
+                imgLeft = draw_area(imgLeft, CrossArea)
+                imgLeft = draw_area(imgLeft, CarLaneArea, (255, 0, 0), (255, 0, 0))
+                imgLeft = cvImgToQtImg(imgLeft, CAMERA_W)
 
-            if isDisablePersonExist is False:
-                if isSpotInRect(CrossArea, cane_pos_left) or isSpotInRect(CrossArea, wheelchair_pos_left) or isSpotInRect(CrossArea, baby_carriage_pos_left):
-                    isDisablePersonExist = True
+            self.CameraLeft.setPixmap(imgLeft.pixmap())
 
-            if isAmbulanceExist is False:
-                if isSpotInRect(CarLaneArea, ambulance_pos_left):
-                    isAmbulanceExist = True
+            if len(imgRight) == 0:
+                imgRight = self.CAMERA_NO_SIGNAL_IMG_R
+            else:
+                CrossArea = self.config.getConfig()['RIGHT_CAMERA_CROSSWALK_POS']
+                CarLaneArea = self.config.getConfig()['RIGHT_CAMERA_CARLANE_POS']
 
-            imgLeft = draw_area(imgLeft, CrossArea)
-            imgLeft = draw_area(imgLeft, CarLaneArea, (255, 0, 0), (255, 0, 0))
-            imgLeft = cvImgToQtImg(imgLeft, CAMERA_W)
+                if isPersonExist is False and isSpotInRect(CrossArea, right_pos):
+                    isPersonExist = True
 
-        self.CameraLeft.setPixmap(imgLeft.pixmap())
+                if isDisablePersonExist is False:
+                    if isSpotInRect(CrossArea, cane_pos_right) or isSpotInRect(CrossArea,wheelchair_pos_right) or \
+                            isSpotInRect(CrossArea, baby_carriage_pos_right):
+                        isDisablePersonExist = True
 
-        if len(imgRight) == 0:
-            imgRight = self.CAMERA_NO_SIGNAL_IMG_R
-        else:
-            CrossArea = self.config.getConfig()['RIGHT_CAMERA_CROSSWALK_POS']
-            CarLaneArea = self.config.getConfig()['RIGHT_CAMERA_CARLANE_POS']
+                if isAmbulanceExist is False:
+                    if isSpotInRect(CarLaneArea, ambulance_pos_right):
+                        isAmbulanceExist = True
 
-            if isPersonExist is False and isSpotInRect(CrossArea, right_pos):
-                isPersonExist = True
+                imgRight = draw_area(imgRight, CrossArea)
+                imgRight = draw_area(imgRight, CarLaneArea, (255, 0, 0), (255, 0, 0))
+                imgRight = cvImgToQtImg(imgRight, CAMERA_W)
 
-            if isDisablePersonExist is False:
-                if isSpotInRect(CrossArea, cane_pos_right) or isSpotInRect(CrossArea, wheelchair_pos_right) or isSpotInRect(CrossArea, baby_carriage_pos_right):
-                    isDisablePersonExist = True
-
-            if isAmbulanceExist is False:
-                if isSpotInRect(CarLaneArea, ambulance_pos_right):
-                    isAmbulanceExist = True
-
-            imgRight = draw_area(imgRight, CrossArea)
-            imgRight = draw_area(imgRight, CarLaneArea, (255, 0, 0), (255, 0, 0))
-            imgRight = cvImgToQtImg(imgRight, CAMERA_W)
-
-        self.CameraRight.setPixmap(imgRight.pixmap())
+            self.CameraRight.setPixmap(imgRight.pixmap())
+        except Exception as e:
+            print(e)
 
     def crosswalk_TurnRed_On(self):
         self.Crosswalk_Red.setPixmap(self.CROSSWALK_RED_ON_IMG.pixmap())
