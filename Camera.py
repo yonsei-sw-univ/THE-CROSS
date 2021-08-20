@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-import Detector
+import ImageDetector
 
 from PyQt5.QtCore import QThread, pyqtSignal
 from ImageUtils import draw_area
@@ -9,7 +9,9 @@ IMAGE_PATH = "Images\\"
 
 
 class VideoThread(QThread):
-    change_pixmap_signal = pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray)
+    change_pixmap_signal = pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+                                      np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+                                      np.ndarray, np.ndarray, np.ndarray, np.ndarray)
 
     def __init__(self, left_camera_num, right_camera_num):
         super().__init__()
@@ -29,23 +31,52 @@ class VideoThread(QThread):
             pos_left = []
             pos_right = []
 
+            ambulance_pos_left = []
+            cane_pos_left = []
+            wheelchair_pos_left = []
+            baby_carriage_pos_left = []
+
+            ambulance_pos_right = []
+            cane_pos_right = []
+            wheelchair_pos_right = []
+            baby_carriage_pos_right = []
+
             if ret_left is False:
-                cv_img_left = []
+                img_result_left = []
             else:
-                cv_img_left, pos_left = Detector.Detector(cv_img_left)
+                img_result_left, pos_left = ImageDetector.Detector(cv_img_left)
+                img_result_left, ambulance_pos_left, cane_pos_left, wheelchair_pos_left, baby_carriage_pos_left = \
+                    ImageDetector.CustomDetector(cv_img_left, drawOnImg=img_result_left)
 
             if ret_right is False:
-                cv_img_right = []
+                img_result_right = []
             else:
-                cv_img_right, pos_right = Detector.Detector(cv_img_right)
+                img_result_right, pos_right = ImageDetector.Detector(cv_img_right)
+                img_result_right, ambulance_pos_right, cane_pos_right, wheelchair_pos_right, baby_carriage_pos_right = \
+                    ImageDetector.CustomDetector(cv_img_right, drawOnImg=img_result_left)
 
             # Convert List => ND_ARRAY Form
-            cv_img_left = np.array(cv_img_left)
-            cv_img_right = np.array(cv_img_right)
+            img_result_left = np.array(img_result_left)
+            img_result_right = np.array(img_result_right)
             pos_left = np.array(pos_left)
             pos_right = np.array(pos_right)
 
-            self.change_pixmap_signal.emit(cv_img_left, cv_img_right, pos_left, pos_right)
+            ambulance_pos_left = np.array(ambulance_pos_left)
+            cane_pos_left = np.array(cane_pos_left)
+            wheelchair_pos_left = np.array(wheelchair_pos_left)
+            baby_carriage_pos_left = np.array(baby_carriage_pos_left)
+
+            ambulance_pos_right = np.array(ambulance_pos_right)
+            cane_pos_right = np.array(cane_pos_right)
+            wheelchair_pos_right = np.array(wheelchair_pos_right)
+            baby_carriage_pos_right = np.array(baby_carriage_pos_right)
+
+            # Emit Lists To Main Processing Method
+            self.change_pixmap_signal.emit(img_result_left, img_result_right, pos_left, pos_right,
+                                           ambulance_pos_left, cane_pos_left, wheelchair_pos_left,
+                                           baby_carriage_pos_left,
+                                           ambulance_pos_right, cane_pos_right, wheelchair_pos_right,
+                                           baby_carriage_pos_right)
 
         # shut down capture system
         cam_left.release()
