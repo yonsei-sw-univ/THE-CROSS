@@ -53,7 +53,7 @@ class VideoThread(QThread):
             else:
                 img_result_right, pos_right = ImageDetector.Detector(cv_img_right)
                 img_result_right, ambulance_pos_right, cane_pos_right, wheelchair_pos_right, baby_carriage_pos_right = \
-                    ImageDetector.CustomDetector(cv_img_right, drawOnImg=img_result_left)
+                    ImageDetector.CustomDetector(cv_img_right, drawOnImg=img_result_right)
 
             # Convert List => ND_ARRAY Form
             img_result_left = np.array(img_result_left)
