@@ -26,8 +26,6 @@ Option_TIME_CARLANE_GREEN_LABEL_TEXT = "차량이동 기본 시간 (자연수)(�
 Option_TIME_CHAGNE_TERM_LABEL_TEXT = "신호 변경 시간 간격 (자연수)(초) : "
 
 
-# https://blog.xcoda.net/104
-# AutoMagically Resize The Input Image Size To ( CAMERA_W * CAMERA_H )
 
 class Main(QWidget):
     def __init__(self):
@@ -274,9 +272,6 @@ class Main(QWidget):
                 CarLaneArea = self.config.getConfig()['LEFT_CAMERA_CARLANE_POS']
                 if isPersonExist is False and isSpotInRect(CrossArea, left_pos):
                     isPersonExist = True
-                print(cane_pos_left)
-                print(wheelchair_pos_left)
-                print(baby_carriage_pos_left)
 
                 if isDisablePersonExist is False:
                     if isSpotInRect(CrossArea, cane_pos_left) or isSpotInRect(CrossArea, wheelchair_pos_left) or \
@@ -314,6 +309,7 @@ class Main(QWidget):
                 imgRight = cvImgToQtImg(imgRight, CAMERA_W)
 
             self.CameraRight.setPixmap(imgRight.pixmap())
+
         except Exception as e:
             print(e)
 
