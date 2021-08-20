@@ -53,7 +53,14 @@ def draw_area(cvImg, pos_list, dotColor=(255, 0, 0), lineColor=(0, 255, 0)):
             x_arg_sort[0] = x_arg_sort[1]
             x_arg_sort[1] = dump
 
-        if pos_list[x_arg_sort[2]][1] < pos_list[x_arg_sort[3]][1]:
+        try:
+            a = (pos_list[x_arg_sort[3]][1] - pos_list[x_arg_sort[0]][1]) / (
+                    pos_list[x_arg_sort[3]][0] - pos_list[x_arg_sort[0]][0])
+            result = a * (pos_list[x_arg_sort[2]][0] - pos_list[x_arg_sort[3]][0]) + pos_list[x_arg_sort[3]][1] - pos_list[x_arg_sort[2]][1]
+        except ZeroDivisionError:
+            result = -1
+
+        if result > 0:
             dump = x_arg_sort[2]
             x_arg_sort[2] = x_arg_sort[3]
             x_arg_sort[3] = dump
@@ -87,7 +94,15 @@ def isSpotInRect(rectPos, spot):
         x_arg_sort[0] = x_arg_sort[1]
         x_arg_sort[1] = dump
 
-    if rectPos[x_arg_sort[2]][1] < rectPos[x_arg_sort[3]][1]:
+    try:
+        a = (rectPos[x_arg_sort[3]][1] - rectPos[x_arg_sort[0]][1]) / (
+                rectPos[x_arg_sort[3]][0] - rectPos[x_arg_sort[0]][0])
+        result = a * (rectPos[x_arg_sort[2]][0] - rectPos[x_arg_sort[3]][0]) + rectPos[x_arg_sort[3]][1] - \
+                 rectPos[x_arg_sort[2]][1]
+    except ZeroDivisionError:
+        result = -1
+
+    if result > 0:
         dump = x_arg_sort[2]
         x_arg_sort[2] = x_arg_sort[3]
         x_arg_sort[3] = dump
@@ -110,7 +125,7 @@ def isSpotInRect(rectPos, spot):
                     continue
             else:
                 # linear a > 0
-                if (p1[1] - p2[1]) / (p1[0] - p2[0]) > 0:
+                if (p1[1] - p2[1]) / (p1[0] - p2[0]) < 0:
                     if not ((p1[1] - p2[1]) / (p1[0] - p2[0]) * (target[0] - p1[0]) + p1[1]) < target[1]:
                         continue
                 # linear a < 0
@@ -126,7 +141,7 @@ def isSpotInRect(rectPos, spot):
                     continue
             else:
                 # linear a > 0
-                if (p3[1] - p4[1]) / (p3[0] - p4[0]) > 0:
+                if (p3[1] - p4[1]) / (p3[0] - p4[0]) < 0:
                     if not ((p3[1] - p4[1]) / (p3[0] - p4[0]) * (target[0] - p3[0]) + p3[1]) > target[1]:
                         continue
                 # linear a < 0
@@ -137,7 +152,7 @@ def isSpotInRect(rectPos, spot):
             if not ((p4[1] - p1[1]) / (p4[0] - p1[0]) * (target[0] - p4[0]) + p4[1]) < target[1]:
                 continue
 
-        except Exception as e:
+        except ZeroDivisionError as e:
             return False
 
         return True
