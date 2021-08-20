@@ -1,9 +1,6 @@
-import os
 import cv2
 import numpy as np
 import tensorflow as tf
-from object_detection.builders import model_builder
-from object_detection.utils import config_util
 import pandas as pd
 import tensorflow_hub as hub
 
@@ -102,8 +99,7 @@ def CustomDetector(image, drawOnImg=None):
         x_min = int(xmin * w)
         y_max = int(ymax * h)
         x_max = int(xmax * w)
-        
-        #Try-catch will be removed
+
         try:
             score_txt = f'{100 * round(score, 0)}'
             if label == 4:
