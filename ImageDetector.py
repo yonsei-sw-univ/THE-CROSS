@@ -1,11 +1,15 @@
-import tensorflow_hub as hub
+import os
 import cv2
-import numpy
+import numpy as np
 import tensorflow as tf
+from object_detection.builders import model_builder
+from object_detection.utils import config_util
 import pandas as pd
+import tensorflow_hub as hub
 
 detector = hub.load("https://tfhub.dev/tensorflow/efficientdet/lite2/detection/1")
-customDetector = tf.saved_model.load('customDetector')
+
+customDetector = tf.saved_model.load('customDetector/saved_model')
 
 labels = pd.read_csv('labels.csv', sep=';', index_col='ID')
 labels = labels['OBJECT (2017 REL.)']
@@ -64,16 +68,23 @@ def CustomDetector(image, drawOnImg=None):
 
     # Add dims to rgb_tensor
     rgb_tensor = tf.expand_dims(rgb_tensor, 0)
+    output_dict = customDetector(rgb_tensor)
 
-    boxes, scores, classes, num_detections = customDetector(rgb_tensor)
+    num_detections = int(output_dict.pop('num_detections'))
+    output_dict = {key: value[0, :num_detections].numpy()
+                   for key, value in output_dict.items()}
+    output_dict['num_detections'] = num_detections
 
-    pred_labels = classes.numpy().astype('int')[0]
+    # detection_classes should be ints.
+    output_dict['detection_classes'] = output_dict['detection_classes'].astype(np.int64)
 
-    pred_labels = [labels[i] for i in pred_labels]
-    pred_boxes = boxes.numpy()[0].astype('int')
-    pred_scores = scores.numpy()[0]
+    pred_labels = output_dict['detection_classes']
+    pred_boxes = output_dict['detection_boxes']
+    pred_scores = output_dict['detection_scores']
 
+    h, w, c = image.shape
     img_result = image
+
     ambulance_pos = []
     cane_pos = []
     wheelchair_pos = []
@@ -87,23 +98,35 @@ def CustomDetector(image, drawOnImg=None):
         if score < 0.5:
             continue
 
-        score_txt = f'{100 * round(score, 0)}'
+        y_min = int(ymin * h)
+        x_min = int(xmin * w)
+        y_max = int(ymax * h)
+        x_max = int(xmax * w)
+        
+        #Try-catch will be removed
+        try:
+            score_txt = f'{100 * round(score, 0)}'
+            if label == 4:
+                label_txt = 'ambulance'
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), ambulance_rectCol, 1)
+                ambulance_pos.append([x_min, y_max, x_max, y_min])
+            elif label == 3:
+                label_txt = 'cane'
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), cane_rectCol, 1)
+                cane_pos.append([x_min, y_max, x_max, y_min])
+            elif label == 1:
+                label_txt = 'wheelchair'
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), wheelchair_rectCol, 1)
+                wheelchair_pos.append([x_min, y_max, x_max, y_min])
+            elif label == 2:
+                label_txt = 'baby_carriage'
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), baby_carriage_rectCol, 1)
+                baby_carriage_pos.append([x_min, y_max, x_max, y_min])
 
-        if label == 'ambulance':
-            img_result = cv2.rectangle(img_result, (xmin, ymax), (xmax, ymin), ambulance_rectCol, 1)
-            ambulance_pos.append([xmin, ymax, xmax, ymin])
-        elif label == 'cane':
-            img_result = cv2.rectangle(img_result, (xmin, ymax), (xmax, ymin), cane_rectCol, 1)
-            cane_pos.append([xmin, ymax, xmax, ymin])
-        elif label == 'wheelchair':
-            img_result = cv2.rectangle(img_result, (xmin, ymax), (xmax, ymin), wheelchair_rectCol, 1)
-            wheelchair_pos.append([xmin, ymax, xmax, ymin])
-        elif label == 'baby_carriage':
-            img_result = cv2.rectangle(img_result, (xmin, ymax), (xmax, ymin), baby_carriage_rectCol, 1)
-            baby_carriage_pos.append([xmin, ymax, xmax, ymin])
-
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(img_result, label, (xmin, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
-        cv2.putText(img_result, score_txt, (xmax, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(img_result, label_txt, (x_min, y_max - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(img_result, score_txt, (x_max, y_max - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+        except Exception as e:
+            print(e)
 
     return img_result, ambulance_pos, cane_pos, wheelchair_pos, baby_carriage_pos
