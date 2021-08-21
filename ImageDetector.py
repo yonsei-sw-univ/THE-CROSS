@@ -8,9 +8,6 @@ detector = hub.load("https://tfhub.dev/tensorflow/efficientdet/lite2/detection/1
 
 customDetector = tf.saved_model.load('customDetector/saved_model')
 
-labels = pd.read_csv('labels.csv', sep=';', index_col='ID')
-labels = labels['OBJECT (2017 REL.)']
-
 ambulance_rectCol = (255, 51, 000)
 cane_rectCol = (204, 51, 000)
 wheelchair_rectCol = (204, 51, 000)
@@ -30,8 +27,6 @@ def Detector(image):
     boxes, scores, classes, num_detections = detector(rgb_tensor)
 
     pred_labels = classes.numpy().astype('int')[0]
-
-    pred_labels = [labels[i] for i in pred_labels]
     pred_boxes = boxes.numpy()[0].astype('int')
     pred_scores = scores.numpy()[0]
 
@@ -40,13 +35,13 @@ def Detector(image):
 
     # loop throughout the detections and place a box around it
     for score, (ymin, xmin, ymax, xmax), label in zip(pred_scores, pred_boxes, pred_labels):
-        if score < 0.5 or label != 'person':
+        if score < 0.5 or label != 1:
             continue
 
         score_txt = f'{100 * round(score, 0)}'
         img_result = cv2.rectangle(img_result, (xmin, ymax), (xmax, ymin), (0, 255, 0), 1)
         font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(img_result, label, (xmin, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+        cv2.putText(img_result, 'person', (xmin, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
         cv2.putText(img_result, score_txt, (xmax, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
 
         pos_result.append([xmin, ymax, xmax, ymin])
@@ -92,7 +87,7 @@ def CustomDetector(image, drawOnImg=None):
 
     # loop throughout the detections and place a box around it
     for score, (ymin, xmin, ymax, xmax), label in zip(pred_scores, pred_boxes, pred_labels):
-        if score < 0.5:
+        if score < 0.8:
             continue
 
         y_min = int(ymin * h)
