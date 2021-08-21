@@ -56,7 +56,8 @@ def draw_area(cvImg, pos_list, dotColor=(255, 0, 0), lineColor=(0, 255, 0)):
         try:
             a = (pos_list[x_arg_sort[3]][1] - pos_list[x_arg_sort[0]][1]) / (
                     pos_list[x_arg_sort[3]][0] - pos_list[x_arg_sort[0]][0])
-            result = a * (pos_list[x_arg_sort[2]][0] - pos_list[x_arg_sort[3]][0]) + pos_list[x_arg_sort[3]][1] - pos_list[x_arg_sort[2]][1]
+            result = a * (pos_list[x_arg_sort[2]][0] - pos_list[x_arg_sort[3]][0]) + pos_list[x_arg_sort[3]][1] - \
+                     pos_list[x_arg_sort[2]][1]
         except ZeroDivisionError:
             result = -1
 
@@ -75,8 +76,6 @@ def draw_area(cvImg, pos_list, dotColor=(255, 0, 0), lineColor=(0, 255, 0)):
     return cvImg
 
 
-# spots is Array
-# TODO: RESULT IS BOOLEAN ( TOTALLY IS IN AREA )
 def isSpotInRect(rectPos, spot):
     if len(spot) == 0:
         return False
@@ -118,7 +117,7 @@ def isSpotInRect(rectPos, spot):
 
         try:
             # [xmin, ymax, xmax, ymin]
-            target = [(spot[i][0] + spot[i][2]) / 2, (spot[i][1] + spot[i][3]) / 2]
+            target = [(spot[i][0] + spot[i][2]) / 2, spot[i][1]]
 
             if p1[0] == p2[0]:
                 if not p1[0] < target[0]:
