@@ -252,7 +252,7 @@ class Main(QWidget):
         self.refreshCamera()
 
         # Set Up Timer
-        self.startTimer()
+        self.start_Timer()
 
         # Set Up Siren Detector
         self.startSirenDetector()
@@ -262,7 +262,7 @@ class Main(QWidget):
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         self.stopCamera()
-        self.stopTimer()
+        self.stop_Timer()
         self.stopSirenDetector()
 
     #   imgLeft & imgRight must be cvImage
@@ -284,6 +284,7 @@ class Main(QWidget):
             else:
                 CrossArea = self.config.getConfig()['LEFT_CAMERA_CROSSWALK_POS']
                 CarLaneArea = self.config.getConfig()['LEFT_CAMERA_CARLANE_POS']
+
                 if isPersonExist is False and isSpotInRect(CrossArea, left_pos):
                     isPersonExist = True
 
@@ -291,9 +292,11 @@ class Main(QWidget):
                     if isSpotInRect(CrossArea, cane_pos_left) or isSpotInRect(CrossArea, wheelchair_pos_left) or \
                             isSpotInRect(CrossArea, baby_carriage_pos_left):
                         isDisablePersonExist = True
+
                 if isAmbulanceExist is False:
                     if isSpotInRect(CarLaneArea, ambulance_pos_left):
                         isAmbulanceExist = True
+
                 imgLeft = draw_area(imgLeft, CrossArea)
                 imgLeft = draw_area(imgLeft, CarLaneArea, (255, 0, 0), (255, 0, 0))
                 imgLeft = cvImgToQtImg(imgLeft, CAMERA_W)
@@ -327,15 +330,18 @@ class Main(QWidget):
         except Exception as e:
             print(e)
 
-        if self.timeStack <= 5:
+        if self.timeStack <= self.changeTerm:
             if self.isCrosswalkTime is False and self.isCarlaneTime is True:
                 if isSiren is True and isAmbulanceExist is True:
                     self.Emergency_Ambulance = True
+                else:
+                    self.Emergency_Ambulance = False
+
             elif self.isCrosswalkTime is True and self.isCarlaneTime is False:
                 if isDisablePersonExist is True:
                     self.Emergency_DisablePerson = True
                 elif isPersonExist is True:
-                    self.Emergency_Ambulance = True
+                    self.Emergency_Person = True
 
     def crosswalk_TurnRed_On(self):
         self.Crosswalk_Red.setPixmap(self.CROSSWALK_RED_ON_IMG.pixmap())
@@ -421,93 +427,86 @@ class Main(QWidget):
 
     def Left_Camera_Crosswalk_Button_Event(self):
         self.stopCamera()
-        self.stopTimer()
+        self.stop_Timer()
         setup = CameraSetup(self.config.getConfig()['LEFT_CAMERA_NUMBER'])
         result = setup.runSetup()
         self.config.setConfig('LEFT_CAMERA_CROSSWALK_POS', result)
         self.refreshCamera()
-        self.startTimer()
+        self.start_Timer()
 
     def Right_Camera_Crosswalk_Button_Event(self):
         self.stopCamera()
-        self.stopTimer()
+        self.stop_Timer()
         setup = CameraSetup(self.config.getConfig()['RIGHT_CAMERA_NUMBER'])
         result = setup.runSetup()
         self.config.setConfig('RIGHT_CAMERA_CROSSWALK_POS', result)
         self.refreshCamera()
-        self.startTimer()
+        self.start_Timer()
 
     def Left_Camera_Carlane_Button_Event(self):
         self.stopCamera()
-        self.stopTimer()
+        self.stop_Timer()
         setup = CameraSetup(self.config.getConfig()['LEFT_CAMERA_NUMBER'])
         result = setup.runSetup()
         self.config.setConfig('LEFT_CAMERA_CARLANE_POS', result)
         self.refreshCamera()
-        self.startTimer()
+        self.start_Timer()
 
     def Right_Camera_Carlane_Button_Event(self):
         self.stopCamera()
-        self.stopTimer()
+        self.stop_Timer()
         setup = CameraSetup(self.config.getConfig()['RIGHT_CAMERA_NUMBER'])
         result = setup.runSetup()
         self.config.setConfig('RIGHT_CAMERA_CARLANE_POS', result)
         self.refreshCamera()
-        self.startTimer()
+        self.start_Timer()
 
     # ============================= TIMER ===============================
 
     def TimerMethod(self):
         while self.isTimerRun:
-
             # 초기화 부분
             if self.isCarlaneTime is False and self.isCrosswalkTime is False:
                 self.startCarlane()
 
             # 긴급 상황 처리
             if self.Emergency_Ambulance or self.Emergency_Person or self.Emergency_DisablePerson:
-                if self.Emergency_Ambulance and self.isCrosswalkTime is False and self.isCarlaneTime is True:
-                    if self.timeStack <= 3:
-                        self.timeStack = 3
-
-                elif self.isCrosswalkTime is True and self.isCarlaneTime is False:
-                    if self.Emergency_DisablePerson:
-                        if self.timeStack == 0:
-                            self.timeStack = self.timeIncSpecial
-                            self.crosswalk_TurnRed_On()
-                            self.crosswalk_TurnGreen_Off()
-                            for i in range(0, self.timeStack - 1):
-                                self.timeStack -= 1
-                                time.sleep(1)
-
-                    elif self.Emergency_Person:
-                        if self.timeStack == 0:
-                            self.timeStack = self.timeIncNormal
-                            self.crosswalk_TurnRed_On()
-                            self.crosswalk_TurnGreen_Off()
-                            for i in range(0, self.timeStack - 1):
-                                self.timeStack -= 1
-                                time.sleep(1)
 
                 self.timeStack -= 1
+                self.changeTimer(self.timeStack)
+                time.sleep(1)
 
-                if self.timeStack == 0:
-                    self.Emergency_Ambulance = False
-                    self.Emergency_DisablePerson = False
-                    self.Emergency_Person = False
+                if self.Emergency_Ambulance is True:
+                    if self.timeStack <= self.changeTerm and self.isCrosswalkTime is False and self.isCarlaneTime:
+                        self.timeStack = self.changeTerm
 
+                elif self.timeStack <= 0:
+                    if self.Emergency_DisablePerson:
+                        self.timeStack = self.timeIncSpecial
+                    elif self.Emergency_Person:
+                        self.timeStack = self.timeIncNormal
+
+                    self.crosswalk_TurnRed_On()
+                    self.crosswalk_TurnGreen_Off()
+                    for i in range(0, self.timeStack):
+                        self.timeStack -= 1
+                        self.changeTimer(self.timeStack)
+                        time.sleep(1)
+
+                if self.timeStack <= 0:
                     if self.isCrosswalkTime is False and self.isCarlaneTime is True:
                         self.startCrosswalk()
 
                     elif self.isCrosswalkTime is True and self.isCarlaneTime is False:
                         self.startCarlane()
 
-                self.changeTimer(self.timeStack)
-                time.sleep(1)
+                    self.Emergency_DisablePerson = False
+                    self.Emergency_Person = False
+
                 continue
 
             # 타이머가 0초일 경우
-            if self.timeStack == 0:
+            if self.timeStack <= 0:
                 self.carlane_TurnYellow_Off()
                 # 차량신호 시간이 끝났을 경우
                 if self.isCarlaneTime is True and self.isCrosswalkTime is False:
@@ -562,11 +561,11 @@ class Main(QWidget):
         self.isCarlaneTime = True
         self.isCrosswalkTime = False
 
-    def stopTimer(self):
+    def stop_Timer(self):
         self.isTimerRun = False
         self.TimerLabel.setText('X')
 
-    def startTimer(self):
+    def start_Timer(self):
         if self.timerThread.is_alive() is True:
             return
         self.timerThread = threading.Thread(target=self.TimerMethod)
@@ -582,7 +581,7 @@ class Main(QWidget):
         self.SirenDetector.start()
 
     def stopSirenDetector(self):
-        if self.SirenDetector.isAlive() is True:
+        if self.SirenDetector.isRun is True:
             self.SirenDetector.stop()
 
 
