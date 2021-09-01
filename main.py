@@ -265,7 +265,7 @@ class Main(QWidget):
         self.stop_Timer()
         self.stopSirenDetector()
 
-    #   imgLeft & imgRight must be cvImage
+    # imgLeft & imgRight must be cvImage
     def processing(self, imgLeft, imgRight, left_pos, right_pos,
                    ambulance_pos_left, cane_pos_left, wheelchair_pos_left, baby_carriage_pos_left,
                    ambulance_pos_right, cane_pos_right, wheelchair_pos_right, baby_carriage_pos_right):
@@ -342,7 +342,9 @@ class Main(QWidget):
                     self.Emergency_DisablePerson = True
                 elif isPersonExist is True:
                     self.Emergency_Person = True
-
+    
+    # ============== CONTROL PANEL SIGH CONTROL ================
+    
     def crosswalk_TurnRed_On(self):
         self.Crosswalk_Red.setPixmap(self.CROSSWALK_RED_ON_IMG.pixmap())
 
@@ -372,7 +374,9 @@ class Main(QWidget):
 
     def carlane_TurnYellow_Off(self):
         self.CarLane_Yellow.setPixmap(self.YELLOW_OFF_IMG.pixmap())
-
+    
+    # ================ CONTROL PANEL CAMERA Setting ==================
+    
     def printPreparingCamera(self):
         self.isPreparingCamera = True
         self.CameraLeft.setPixmap(self.CAMERA_PREPARING_IMG_L.pixmap())
@@ -395,13 +399,15 @@ class Main(QWidget):
     # ================= CONTROL PANEL BUTTON EVENTS =====================
 
     def confirmButtonClicked(self):
-        # TODO: TRY-EXCEPTION USING!!!
         # GET TEXTBOX VALUES
-        INCREASE_TIME_NORMAL = int(self.Option_INC_TIME_NORMAL_Input.text())
-        INCREASE_TIME_SPECIAL = int(self.Option_INC_TIME_SPECIAL_Input.text())
-        CROSSWALK_TIME = int(self.Option_TIME_CROSSWALK_GREEN_Input.text())
-        CARLANE_TIME = int(self.Option_TIME_CARLANE_GREEN_Input.text())
-        CHANGE_TERM = int(self.Option_TIME_CHANGE_TERM_Input.text())
+        try:
+            INCREASE_TIME_NORMAL = int(self.Option_INC_TIME_NORMAL_Input.text())
+            INCREASE_TIME_SPECIAL = int(self.Option_INC_TIME_SPECIAL_Input.text())
+            CROSSWALK_TIME = int(self.Option_TIME_CROSSWALK_GREEN_Input.text())
+            CARLANE_TIME = int(self.Option_TIME_CARLANE_GREEN_Input.text())
+            CHANGE_TERM = int(self.Option_TIME_CHANGE_TERM_Input.text())
+        except ValueError as e:
+            return
 
         # SAVE AT JSON
         self.config.setConfig('INCREASE_TIME_NORMAL', INCREASE_TIME_NORMAL)
@@ -410,7 +416,6 @@ class Main(QWidget):
         self.config.setConfig('CARLANE_TIME', CARLANE_TIME)
         self.config.setConfig('CHANGE_TERM', CHANGE_TERM)
 
-        # TODO: CHANGE OPTIONS TO PROGRAM
         self.crosswalkTime = self.config.getConfig()['CROSSWALK_TIME']
         self.carlaneTime = self.config.getConfig()['CARLANE_TIME']
         self.changeTerm = self.config.getConfig()['CHANGE_TERM']
@@ -422,8 +427,7 @@ class Main(QWidget):
             self.timeStack = self.crosswalkTime
 
     def Change_CarTime_Button_Event(self):
-        print('Change To Car Time')
-        return
+        self.startCarlane()
 
     def Left_Camera_Crosswalk_Button_Event(self):
         self.stopCamera()
