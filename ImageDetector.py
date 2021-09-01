@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import tensorflow as tf
-import pandas as pd
 import tensorflow_hub as hub
 
 detector = hub.load("https://tfhub.dev/tensorflow/efficientdet/lite2/detection/1")
@@ -42,7 +41,6 @@ def Detector(image):
         img_result = cv2.rectangle(img_result, (xmin, ymax), (xmax, ymin), (0, 255, 0), 1)
         font = cv2.FONT_HERSHEY_SIMPLEX
         cv2.putText(img_result, 'person', (xmin, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
-        cv2.putText(img_result, score_txt, (xmax, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
 
         pos_result.append([xmin, ymax, xmax, ymin])
 
@@ -87,7 +85,7 @@ def CustomDetector(image, drawOnImg=None):
 
     # loop throughout the detections and place a box around it
     for score, (ymin, xmin, ymax, xmax), label in zip(pred_scores, pred_boxes, pred_labels):
-        if score < 0.8:
+        if score < 0.3:
             continue
 
         y_min = int(ymin * h)
@@ -96,27 +94,31 @@ def CustomDetector(image, drawOnImg=None):
         x_max = int(xmax * w)
 
         try:
-            score_txt = f'{100 * round(score, 0)}'
-            if label == 4:
-                label_txt = 'ambulance'
-                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), ambulance_rectCol, 1)
-                ambulance_pos.append([x_min, y_max, x_max, y_min])
-            elif label == 3:
-                label_txt = 'cane'
-                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), cane_rectCol, 1)
-                cane_pos.append([x_min, y_max, x_max, y_min])
-            elif label == 1:
+            label_txt = ''
+
+            if label == 1:
                 label_txt = 'wheelchair'
-                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), wheelchair_rectCol, 1)
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), wheelchair_rectCol, 3)
                 wheelchair_pos.append([x_min, y_max, x_max, y_min])
+
             elif label == 2:
                 label_txt = 'baby_carriage'
-                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), baby_carriage_rectCol, 1)
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), baby_carriage_rectCol, 3)
                 baby_carriage_pos.append([x_min, y_max, x_max, y_min])
 
+            elif label == 3:
+                label_txt = 'cane'
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), cane_rectCol, 3)
+                cane_pos.append([x_min, y_max, x_max, y_min])
+
+            elif label == 4:
+                label_txt = 'ambulance'
+                img_result = cv2.rectangle(img_result, (x_min, y_max), (x_max, y_min), ambulance_rectCol, 3)
+                ambulance_pos.append([x_min, y_max, x_max, y_min])
+
             font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img_result, label_txt, (x_min, y_max - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
-            cv2.putText(img_result, score_txt, (x_max, y_max - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(img_result, label_txt, (x_min, y_max - 10), font, 0.5, (255, 0, 0), 3, cv2.LINE_AA)
+
         except Exception as e:
             print(e)
 
