@@ -342,9 +342,9 @@ class Main(QWidget):
                     self.Emergency_DisablePerson = True
                 elif isPersonExist is True:
                     self.Emergency_Person = True
-    
+
     # ============== CONTROL PANEL SIGH CONTROL ================
-    
+
     def crosswalk_TurnRed_On(self):
         self.Crosswalk_Red.setPixmap(self.CROSSWALK_RED_ON_IMG.pixmap())
 
@@ -374,9 +374,9 @@ class Main(QWidget):
 
     def carlane_TurnYellow_Off(self):
         self.CarLane_Yellow.setPixmap(self.YELLOW_OFF_IMG.pixmap())
-    
+
     # ================ CONTROL PANEL CAMERA Setting ==================
-    
+
     def printPreparingCamera(self):
         self.isPreparingCamera = True
         self.CameraLeft.setPixmap(self.CAMERA_PREPARING_IMG_L.pixmap())
@@ -419,6 +419,8 @@ class Main(QWidget):
         self.crosswalkTime = self.config.getConfig()['CROSSWALK_TIME']
         self.carlaneTime = self.config.getConfig()['CARLANE_TIME']
         self.changeTerm = self.config.getConfig()['CHANGE_TERM']
+        self.timeIncNormal = self.config.getConfig()['INCREASE_TIME_NORMAL']
+        self.timeIncSpecial = self.config.getConfig()['INCREASE_TIME_SPECIAL']
 
     def Change_CrosswalkTime_Button_Event(self):
         if self.isCarlaneTime is True and self.isCrosswalkTime is False:
