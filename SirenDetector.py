@@ -10,6 +10,7 @@ siren_classesNum = [316, 317, 318, 319, 390, 391]
 class SirenDetector(threading.Thread):
 
     def __init__(self):
+        super().__init__()
         self.model = hub.load('https://tfhub.dev/google/yamnet/1')
         self.fs = 16000
         self.duration = 2  # seconds
@@ -37,9 +38,3 @@ class SirenDetector(threading.Thread):
 
     def stop(self):
         self.isRun = False
-        self.stop()
-
-
-if __name__ == "__main__":
-    siren = SirenDetector()
-    siren.run()
