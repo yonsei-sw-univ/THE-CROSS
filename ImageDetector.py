@@ -37,7 +37,6 @@ def Detector(image):
         if score < 0.5 or label != 1:
             continue
 
-        score_txt = f'{100 * round(score, 0)}'
         img_result = cv2.rectangle(img_result, (xmin, ymax), (xmax, ymin), (0, 255, 0), 1)
         font = cv2.FONT_HERSHEY_SIMPLEX
         cv2.putText(img_result, 'person', (xmin, ymax - 10), font, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
